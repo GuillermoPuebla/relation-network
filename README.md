@@ -5,3 +5,4 @@ Relation network is a noval neural network introduced by deepmind in [A simple n
 
 I implement Relation network using keras and train it on a challenging visual question answering dataset called [Cornell NLVR](https://github.com/cornell-lic/nlvr). The training is in progress. The temporal test accuracy is 89.10%, which is much higher than the previous state of the art (61.99%).
 
+This fork is adapted to handle BAbl data (not finished yet).
