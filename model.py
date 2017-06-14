@@ -6,8 +6,13 @@ from keras.layers import Dense, Dropout, Activation, Flatten, Input, Embedding,\
 from keras.layers.convolutional import Conv2D, MaxPooling2D, AveragePooling2D
 from keras.layers.normalization import BatchNormalization
 from keras.optimizers import Adam
+import prepare
+
 
 def bn_layer(x, conv_unit):
+    ''''
+    Convolutional layers with batch normalization and RELU activation
+    '''
     def f(inputs):
         md = Conv2D(x, (conv_unit, conv_unit), padding='same')(inputs)
         md = BatchNormalization()(md)
@@ -16,6 +21,9 @@ def bn_layer(x, conv_unit):
 
 
 def conv_net(inputs):
+    ''''
+    Batch normalization layer, RELU activation
+    '''
     model = bn_layer(32, 3)(inputs)
     model = MaxPooling2D((2, 2), 2)(model)
     model = bn_layer(32, 3)(model)
@@ -28,9 +36,11 @@ def conv_net(inputs):
     return model
 
 
-def build_model():
+def model():
     input1 = Input((50, 200, 3))
     input2 = Input((mxlen,))
+
+
     cnn_features = conv_net(input1)
     embedding_layer = prepare.embedding_layer(prepare.tokenizer.word_index, prepare.get_embeddings_index(), mxlen)
     embedding = embedding_layer(input2)

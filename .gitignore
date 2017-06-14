@@ -100,4 +100,6 @@ ENV/
 bin/
 include/
 pip-selfcheck.json
+data
+*.pickle
 
