@@ -25,6 +25,7 @@ def main():
 
     imgs, ws, labels = prepare.load_images(train_img_folder, data, debug=True)
 
+    inputs_train, queries_train, answers_train, inputs_test, queries_test, answers_test = prepare.get_babl_data()
 
     data.clear()
     imgs_mean = np.mean(imgs)

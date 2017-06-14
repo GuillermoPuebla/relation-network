@@ -97,4 +97,7 @@ ENV/
 
 
 .idea/
+bin/
+include/
+pip-selfcheck.json
 

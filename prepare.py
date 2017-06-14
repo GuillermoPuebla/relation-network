@@ -2,9 +2,13 @@ import json
 import numpy as np
 import os
 from PIL import Image
+import tarfile
+import re
 from keras.layers import Embedding
 from keras.preprocessing.text import Tokenizer
 from keras.preprocessing.sequence import pad_sequences
+from keras.utils.data_utils import get_file
+
 
 EMBEDDING_DIM = 50
 tokenizer = Tokenizer()
@@ -162,6 +166,7 @@ def get_stories(f, only_supporting=False, max_length=None, data_type=None, datas
         fparsed.close()
     except:
         data = parse_stories(f.readlines(), only_supporting=only_supporting)
+        f.close()
         print("Save data as file")
         print(len(data))
         fparsed = open("parsed_stories_"+ dataset + "_" + data_type+".pickle", 'wb')
@@ -204,49 +209,51 @@ def vectorize_stories(data, word_idx, story_maxlen, query_maxlen):
             pad_sequences(Xq, maxlen=query_maxlen), np.array(Y))
 
 
-
-def get_babl_data():
-    # try:
-    #     path = get_file('babi-tasks-v1-2.tar.gz', origin='https://s3.amazonaws.com/text-datasets/babi_tasks_1-20_v1-2.tar.gz')
-    # except:
-    #     print('Error downloading dataset, please download it manually:\n'
-    #           '$ wget http://www.thespermwhale.com/jaseweston/babi/tasks_1-20_v1-2.tar.gz\n'
-    #           '$ mv tasks_1-20_v1-2.tar.gz ~/.keras/datasets/babi-tasks-v1-2.tar.gz')
-    #     raise
-    # tar = tarfile.open(path)
+def default_babl_dataset():
+    '''
+    Downloads and loads the default Facebook BAbl dataset
+    '''
+    try:
+        path = get_file('babi-tasks-v1-2.tar.gz', origin='https://s3.amazonaws.com/text-datasets/babi_tasks_1-20_v1-2.tar.gz')
+    except:
+        print('Error downloading dataset, please download it manually:\n'
+              '$ wget http://www.thespermwhale.com/jaseweston/babi/tasks_1-20_v1-2.tar.gz\n'
+              '$ mv tasks_1-20_v1-2.tar.gz ~/.keras/datasets/babi-tasks-v1-2.tar.gz')
+        raise
+    tar = tarfile.open(path)
 
     challenges = {
         # QA1 with 10,000 samples
-        'single_supporting_fact_10k': 'train_data_subset.txt',
+        'single_supporting_fact_10k': 'tasks_1-20_v1-2/en-10k/qa1_single-supporting-fact_{}.txt',
         # QA2 with 10,000 samples
-        #'two_supporting_facts_10k': 'tasks_1-20_v1-2/en-10k/qa2_two-supporting-facts_{}.txt',
+        'two_supporting_facts_10k': 'tasks_1-20_v1-2/en-10k/qa2_two-supporting-facts_{}.txt',
     }
+    challenge_type = 'single_supporting_fact_10k'
+    challenge = challenges[challenge_type]
 
-    # with open("train_data_subset.txt", 'r') as ftrain:
-    #     train_raw = ftrain.read()
-    #
-    # with open("test_data_subset.txt", 'r') as ftest:
-    #     test_raw = ftest.read()
-    #challenge_type = 'single_supporting_fact_10k'
-    #challenge = challenges[challenge_type]
-
-    training_file = "train_data_entity_full.txt"
-    test_file = "test_data_entity_full.txt"
-    #print('Extracting stories for the challenge:', challenge_type)
-    with open(training_file, 'r') as ftrain:
-        train_stories = get_stories(ftrain, only_supporting=False, max_length=5000, data_type="train", dataset=os.path.splittext(training_file)[0])
-
-    with open(test_file, 'r') as ftest:
-        test_stories = get_stories(ftest, only_supporting=False, max_length=5000, data_type="test")
+    print('Extracting stories for the challenge:', challenge_type)
+    return (tar.extractfile(challenge.format('train')),tar.extractfile(challenge.format('test')))
 
 
-    # ftrain = open("parsed_flattened_stories_train.pickle", 'rb')
-    # train_stories = pickle.load(ftrain)
-    # ftrain.close()
-    #
-    # ftest = open("parsed_flattened_stories_test.pickle", 'rb')
-    # test_stories = pickle.load(ftest)
-    # ftest.close()
+def custom_babl_dataset(train_file="train_data_entity_full.txt", test_file="test_data_entity_full.txt"):
+    '''
+    Loads your custom dataset (needs to be in BAbl format to be parsable)
+    '''
+    train_raw = open(train_file, 'r')
+    test_raw = open(test_file, 'r')
+    return (train_raw, test_raw)
+
+def get_babl_data(datatype="custom"):
+    '''
+     Preprocess BAbl data
+     '''
+    if datatype=="default":
+        ftrain, ftest = default_babl_dataset()
+    else:
+        ftrain, ftest = custom_babl_dataset()
+
+    train_stories = get_stories(ftrain, only_supporting=False, max_length=5000, data_type="train", dataset="entity")
+    test_stories = get_stories(ftest, only_supporting=False, max_length=5000, data_type="test", dataset="entity")
 
     vocab = set()
     for story, q, answer in train_stories + test_stories:
@@ -294,3 +301,5 @@ def get_babl_data():
     print('answers_test shape:', answers_test.shape)
     print('-')
     print('Compiling...')
+
+    return (inputs_train, queries_train, answers_train,inputs_test, queries_test, answers_test )
