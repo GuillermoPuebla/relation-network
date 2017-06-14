@@ -18,16 +18,24 @@ epochs = 100
 
 train_json = 'nlvr\\train\\train.json'
 train_img_folder = 'nlvr\\train\\images'
-data = prepare.load_data(train_json)
-data = prepare.tokenize_data(data, mxlen)
-imgs, ws, labels = prepare.load_images(train_img_folder, data, debug=True)
-data.clear()
-imgs_mean = np.mean(imgs)
-imgs_std = np.std(imgs - imgs_mean)
-imgs = (imgs - imgs_mean) / imgs_std
 
-epochs = 100
-batch_size = 64
+def main():
+    data = prepare.load_data(train_json)
+    data = prepare.tokenize_data(data, mxlen)
+
+    imgs, ws, labels = prepare.load_images(train_img_folder, data, debug=True)
+
+
+    data.clear()
+    imgs_mean = np.mean(imgs)
+    imgs_std = np.std(imgs - imgs_mean)
+    imgs = (imgs - imgs_mean) / imgs_std
+
+    epochs = 100
+    batch_size = 64
+    model = build_model()
+    model.fit([imgs, ws], labels, validation_split=0.1, epochs=epochs)
+    model.save('model')
 
 
 def bn_layer(x, conv_unit):
@@ -51,28 +59,47 @@ def conv_net(inputs):
     return model
 
 
-input1 = Input((50, 200, 3))
-input2 = Input((mxlen,))
-cnn_features = conv_net(input1)
-embedding_layer = prepare.embedding_layer(prepare.tokenizer.word_index, prepare.get_embeddings_index(), mxlen)
-embedding = embedding_layer(input2)
-bi_lstm = Bidirectional(LSTM(lstm_unit, implementation=2, return_sequences=False))
-lstm_encode = bi_lstm(embedding)
-shapes = cnn_features.shape
-w, h = shapes[1], shapes[2]
-features = []
-for k1 in range(w):
-    for k2 in range(h):
-        def get_feature(t):
-            return t[:, k1, k2, :]
-        get_feature_layer = Lambda(get_feature)
-        features.append(get_feature_layer(cnn_features))
+def build_model():
+    input1 = Input((50, 200, 3))
+    input2 = Input((mxlen,))
+    cnn_features = conv_net(input1)
+    embedding_layer = prepare.embedding_layer(prepare.tokenizer.word_index, prepare.get_embeddings_index(), mxlen)
+    embedding = embedding_layer(input2)
+    bi_lstm = Bidirectional(LSTM(lstm_unit, implementation=2, return_sequences=False))
+    lstm_encode = bi_lstm(embedding)
+    shapes = cnn_features.shape
+    w, h = shapes[1], shapes[2]
+    features = []
+    for k1 in range(w):
+        for k2 in range(h):
+            def get_feature(t):
+                return t[:, k1, k2, :]
+            get_feature_layer = Lambda(get_feature)
+            features.append(get_feature_layer(cnn_features))
 
-relations = []
-concat = Concatenate()
-for feature1 in features:
-    for feature2 in features:
-        relations.append(concat([feature1, feature2, lstm_encode]))
+    relations = []
+    concat = Concatenate()
+    for feature1 in features:
+        for feature2 in features:
+            relations.append(concat([feature1, feature2, lstm_encode]))
+
+    g_MLP = get_MLP(4, get_dense(4))
+    f_MLP = get_MLP(2, get_dense(2))
+
+    mid_relations = []
+    for r in relations:
+        mid_relations.append(g_MLP(r))
+
+    combined_relation = Add()(mid_relations)
+
+    rn = dropout_dense(combined_relation)
+    rn = dropout_dense(rn)
+    pred = Dense(1, activation='sigmoid')(rn)
+
+    model = Model(inputs=[input1, input2], outputs=pred)
+    optimizer = Adam(lr=3e-5)
+    model.compile(optimizer=optimizer, loss='binary_crossentropy', metrics=['accuracy'])
+    return model
 
 
 def get_dense(n):
@@ -97,22 +124,5 @@ def dropout_dense(x):
     y = Activation('relu')(y)
     return y
 
-g_MLP = get_MLP(4, get_dense(4))
-f_MLP = get_MLP(2, get_dense(2))
 
-mid_relations = []
-for r in relations:
-    mid_relations.append(g_MLP(r))
-combined_relation = Add()(mid_relations)
 
-rn = dropout_dense(combined_relation)
-rn = dropout_dense(rn)
-pred = Dense(1, activation='sigmoid')(rn)
-
-model = Model(inputs=[input1, input2], outputs=pred)
-optimizer = Adam(lr=3e-5)
-model.compile(optimizer=optimizer, loss='binary_crossentropy', metrics=['accuracy'])
-model.fit([imgs, ws], labels, validation_split=0.1, epochs=epochs)
-model.save('model')
-gc.collect()
-subprocess.Popen("rundll32.exe powrprof.dll,SetSuspendState 0,1,0")
