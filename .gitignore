@@ -103,3 +103,9 @@ pip-selfcheck.json
 data
 *.pickle
 
+test_data_entity_full.txt
+train_data_entity_full.txt
+
+*.h5
+model_entity_full.json
+

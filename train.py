@@ -39,6 +39,7 @@ def main(dataset="babl"):
     model.save('model')
 
 
-
+if __name__ == '__main__':
+    main()
 
 
